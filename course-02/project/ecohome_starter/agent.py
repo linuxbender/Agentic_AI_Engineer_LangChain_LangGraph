@@ -16,7 +16,7 @@ class Agent:
             model=model,
             temperature=0.0,
             base_url="https://openai.vocareum.com/v1",
-            api_key=os.getenv("VOCAREUM_API_KEY")
+            api_key=os.getenv("OPENAI_API_KEY")
         )
 
         # Create the Energy Advisor agent
@@ -30,15 +30,15 @@ class Agent:
     def invoke(self, question: str, context:str=None) -> str:
         """
         Ask the Energy Advisor a question about energy optimization.
-        
+
         Args:
             question (str): The user's question about energy optimization
-            location (str): Location for weather and pricing data
-        
+            context (str, optional): The user's context for weather and pricing data. Defaults to None.
+
         Returns:
             str: The advisor's response with recommendations
         """
-        
+
         messages = []
         if context:
             # Add some context to the question as a system message
@@ -49,14 +49,14 @@ class Agent:
         messages.append(
             ("user", question)
         )
-        
+
         # Get response from the agent
         response = self.graph.invoke(
             input= {
                 "messages": messages
             }
         )
-        
+
         return response
 
     def get_agent_tools(self):
