@@ -1,5 +1,5 @@
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langchain.prompts.chat import SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts.chat import SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 
 def get_intent_classification_prompt() -> PromptTemplate:
@@ -65,18 +65,16 @@ Guidelines:
 CALCULATION_SYSTEM_PROMPT = """"""
 
 
-# TODO: Finish the function to return the correct prompt based on intent type
-# Refer to README.md Task 3.1 for details
 def get_chat_prompt_template(intent_type: str) -> ChatPromptTemplate:
     """
     Get the appropriate chat prompt template based on intent.
     """
     if intent_type == "qa":
         system_prompt = QA_SYSTEM_PROMPT
-    elif intent_type ==  # TODO:  Check the intent type value
-        system_prompt =  # TODO: Set system prompt to the correct value based on intent type
-    elif intent_type ==  # TODO: Check the intent type value
-    # TODO: Set system prompt to the correct value based on intent type
+    elif intent_type == "summarization":
+        system_prompt = SUMMARIZATION_SYSTEM_PROMPT
+    elif intent_type == "calculation":
+        system_prompt = CALCULATION_SYSTEM_PROMPT
     else:
         system_prompt = QA_SYSTEM_PROMPT  # Default fallback
 

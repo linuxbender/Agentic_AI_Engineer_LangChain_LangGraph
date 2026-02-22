@@ -54,8 +54,10 @@ def main():
     # Load environment variables
     load_dotenv()
 
-    # Get API key
+    # Get API key and base URL
     api_key = os.getenv("OPENAI_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL")
+
     if not api_key:
         print("Error: OPENAI_API_KEY not found in environment variables")
         print("Please create a .env file with your OpenAI API key")
@@ -68,6 +70,7 @@ def main():
     print(" INITIALIZING ASSISTANT...", color='green')
     assistant = DocumentAssistant(
         openai_api_key=api_key,
+        openai_base_url=base_url,
         model_name="gpt-4o",
         temperature=0.1
     )

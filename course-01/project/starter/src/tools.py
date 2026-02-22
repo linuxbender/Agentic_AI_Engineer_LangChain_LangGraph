@@ -4,7 +4,7 @@ Think of these as the agent's Swiss Army knife 🔧 - each tool has a specific p
 """
 
 from typing import Dict, Any, List, Optional, Literal
-from langchain.tools import tool
+from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 import re
 import json
@@ -59,15 +59,68 @@ class ToolLogger:
             json.dump(self.logs, f, indent=2)
 
 
-# TODO: Implement the calculator tool using the @tool decorator.
-# This tool should safely evaluate mathematical expressions and log its usage.
-# Refer to README.md Task 4.1 for detailed implementation requirements.
 def create_calculator_tool(logger: ToolLogger):
     """
-    Creates a calculator tool - TO BE IMPLEMENTED
+    Creates a calculator tool that safely evaluates mathematical expressions.
     """
-    # Your implementation here
-    pass
+
+    @tool
+    def calculator(expression: str) -> str:
+        """
+        Safely evaluate mathematical expressions.
+
+        Args:
+            expression: A mathematical expression to evaluate (e.g., "2 + 2", "100 * 0.15", "(50000 + 75000) / 2")
+
+        Returns:
+            The calculated result as a formatted string
+
+        Examples:
+            - "2 + 2" → "4"
+            - "100 * 1.5" → "150.0"
+            - "(50000 + 75000) / 2" → "62500.0"
+        """
+        try:
+            # Validate the expression for safety
+            # Only allow mathematical operations and numbers
+            allowed_chars = set("0123456789+-*/()., ")
+            if not all(c in allowed_chars for c in expression):
+                error_msg = f"Invalid characters in expression. Only numbers and basic math operators (+, -, *, /, (), .) are allowed."
+                logger.log_tool_use("calculator", {"expression": expression}, {"error": error_msg})
+                return error_msg
+
+            # Remove spaces for cleaner evaluation
+            clean_expression = expression.replace(" ", "")
+
+            # Evaluate the expression safely
+            result = eval(clean_expression, {"__builtins__": {}}, {})
+
+            # Format the result
+            formatted_result = f"The result of {expression} is {result}"
+
+            # Log the tool usage
+            logger.log_tool_use(
+                "calculator",
+                {"expression": expression},
+                {"result": result}
+            )
+
+            return formatted_result
+
+        except ZeroDivisionError:
+            error_msg = "Error: Division by zero"
+            logger.log_tool_use("calculator", {"expression": expression}, {"error": error_msg})
+            return error_msg
+        except SyntaxError:
+            error_msg = f"Error: Invalid mathematical expression syntax: {expression}"
+            logger.log_tool_use("calculator", {"expression": expression}, {"error": error_msg})
+            return error_msg
+        except Exception as e:
+            error_msg = f"Error evaluating expression: {str(e)}"
+            logger.log_tool_use("calculator", {"expression": expression}, {"error": error_msg})
+            return error_msg
+
+    return calculator
 
 
 def create_document_search_tool(retriever, logger: ToolLogger):

@@ -23,17 +23,23 @@ class DocumentAssistant:
     def __init__(
             self,
             openai_api_key: str,
+            openai_base_url: Optional[str] = None,
             model_name: str = "gpt-4o",
             temperature: float = 0.1,
             session_storage_path: str = "./sessions"
     ):
         # Initialize LLM
-        self.llm = ChatOpenAI(
-            api_key=openai_api_key,
-            model=model_name,
-            temperature=temperature,
-            base_url="https://openai.vocareum.com/v1"
-        )
+        llm_kwargs = {
+            "api_key": openai_api_key,
+            "model": model_name,
+            "temperature": temperature,
+        }
+
+        # Add base_url if provided
+        if openai_base_url:
+            llm_kwargs["base_url"] = openai_base_url
+
+        self.llm = ChatOpenAI(**llm_kwargs)
 
         # Initialize components
         self.retriever = SimulatedRetriever()
@@ -116,13 +122,12 @@ class DocumentAssistant:
     def process_message(self, user_input: str) -> Dict[str, Any]:
         """Process a user message using the LangGraph workflow."""
 
-#TODO: Complete the config dictionary to set the thread_ud, llm, and tools to the workflow
-        # Refer to README.md Task 2.6 for details
+        # Complete the config dictionary to set the thread_id, llm, and tools
         config = {
             "configurable": {
-                "thread_id": # TODO: Set this to the session id of the current sessions
-                "llm": # TODO Set this to the LLM instance (self.llm)
-                "tools": # TODO Set this to the list of tools
+                "thread_id": self.current_session.session_id,
+                "llm": self.llm,
+                "tools": self.tools
             }
         }
 

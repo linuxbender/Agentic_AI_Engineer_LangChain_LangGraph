@@ -44,8 +44,8 @@ class AgentState(TypedDict):
     session_id: Optional[str]
     user_id: Optional[str]
 
-    # TODO: Modify actions_taken to use an operator.add reducer
-    actions_taken: Annotated[List[str]]
+    # Track agent nodes executed with reducer
+    actions_taken: Annotated[List[str], operator.add]
 
 
 def invoke_react_agent(response_schema: type[BaseModel], messages: List[BaseMessage], llm, tools) -> (
@@ -66,9 +66,6 @@ Dict[str, Any], List[str]):
     return result, tools_used
 
 
-# TODO: Implement the classify_intent function.
-# This function should classify the user's intent and set the next step in the workflow.
-# Refer to README.md Task 2.2
 def classify_intent(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Classify user intent and update next_step. Also records that this
@@ -78,17 +75,39 @@ def classify_intent(state: AgentState, config: RunnableConfig) -> AgentState:
     llm = config.get("configurable").get("llm")
     history = state.get("messages", [])
 
-    # TODO Configure the llm chat model for structured output
+    # Configure the llm chat model for structured output
+    structured_llm = llm.with_structured_output(UserIntent)
 
-    # TODO Create a formatted prompt with conversation history and user input
+    # Create a formatted prompt with conversation history and user input
+    prompt_template = get_intent_classification_prompt()
 
-    next_step = "qa"
+    # Format conversation history
+    conversation_history = "\n".join([
+        f"{msg.type}: {msg.content}" for msg in history[-5:]  # Last 5 messages for context
+    ]) if history else "No previous conversation"
 
-    # TODO: Add conditional logic to set next_step based on intent
+    prompt = prompt_template.format(
+        user_input=state["user_input"],
+        conversation_history=conversation_history
+    )
+
+    # Invoke the LLM
+    intent = structured_llm.invoke(prompt)
+
+    # Add conditional logic to set next_step based on intent
+    if intent.intent_type == "qa":
+        next_step = "qa_agent"
+    elif intent.intent_type == "summarization":
+        next_step = "summarization_agent"
+    elif intent.intent_type == "calculation":
+        next_step = "calculation_agent"
+    else:
+        next_step = "qa_agent"  # Default to qa_agent for unknown intents
 
     return {
         "actions_taken": ["classify_intent"],
-        # TODO: Update state intent and next_step
+        "intent": intent,
+        "next_step": next_step,
     }
 
 
@@ -117,35 +136,63 @@ def qa_agent(state: AgentState, config: RunnableConfig) -> AgentState:
     }
 
 
-# TODO: Implement the summarization_agent function. Refer to README.md Task 2.3
 def summarization_agent(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Handle summarization tasks and record the action.
     """
+    llm = config.get("configurable").get("llm")
+    tools = config.get("configurable").get("tools")
+
+    prompt_template = get_chat_prompt_template("summarization")
+
+    messages = prompt_template.invoke({
+        "input": state["user_input"],
+        "chat_history": state.get("messages", []),
+    }).to_messages()
+
+    result, tools_used = invoke_react_agent(SummarizationResponse, messages, llm, tools)
 
     return {
-
+        "messages": result.get("messages", []),
+        "actions_taken": ["summarization_agent"],
+        "current_response": result,
+        "tools_used": tools_used,
+        "next_step": "update_memory",
     }
 
 
-# TODO: Implement the calculation_agent function. Refer to README.md Task 2.3
 def calculation_agent(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Handle calculation tasks and record the action.
     """
+    llm = config.get("configurable").get("llm")
+    tools = config.get("configurable").get("tools")
+
+    prompt_template = get_chat_prompt_template("calculation")
+
+    messages = prompt_template.invoke({
+        "input": state["user_input"],
+        "chat_history": state.get("messages", []),
+    }).to_messages()
+
+    result, tools_used = invoke_react_agent(CalculationResponse, messages, llm, tools)
 
     return {
-
+        "messages": result.get("messages", []),
+        "actions_taken": ["calculation_agent"],
+        "current_response": result,
+        "tools_used": tools_used,
+        "next_step": "update_memory",
     }
 
 
-# TODO: Finish implementing the update_memory function. Refer to README.md Task 2.4
-def update_memory(state: AgentState) -> AgentState:
+def update_memory(state: AgentState, config: RunnableConfig) -> AgentState:
     """
     Update conversation memory and record the action.
     """
 
-    # TODO: Retrieve the LLM from config
+    # Extract the LLM from config
+    llm = config.get("configurable").get("llm")
 
     prompt_with_history = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(MEMORY_SUMMARY_PROMPT),
@@ -154,47 +201,57 @@ def update_memory(state: AgentState) -> AgentState:
         "chat_history": state.get("messages", []),
     })
 
-    structured_llm = llm.with_structured_output(
-        # TODO Pass in the correct schema from scheams.py to extract conversation summary, active documents
-    )
+    # Pass in the correct schema to extract conversation summary and active documents
+    structured_llm = llm.with_structured_output(UpdateMemoryResponse)
 
     response = structured_llm.invoke(prompt_with_history)
+
     return {
-        "conversation_summary":  # TODO: Extract summary from response
-            "active_documents":  # TODO: Update with the current active documents
-    "next_step":  # TODO: Update the next step to end
+        "conversation_summary": response.summary,
+        "active_documents": response.document_ids,
+        "next_step": "end",
+        "actions_taken": ["update_memory"],
     }
 
-    def should_continue(state: AgentState) -> str:
-        """Router function"""
-        return state.get("next_step", "end")
+def should_continue(state: AgentState) -> str:
+    """Router function"""
+    return state.get("next_step", "end")
 
-    # TODO: Complete the create_workflow function. Refer to README.md Task 2.5
-    def create_workflow(llm, tools):
-        """
-        Creates the LangGraph agents.
-        Compiles the workflow with an InMemorySaver checkpointer to persist state.
-        """
-        workflow = StateGraph(AgentState)
 
-        # TODO: Add all the nodes to the workflow by calling workflow.add_node(...)
+def create_workflow(llm, tools):
+    """
+    Creates the LangGraph agents.
+    Compiles the workflow with an InMemorySaver checkpointer to persist state.
+    """
+    from langgraph.checkpoint.memory import MemorySaver
 
-        workflow.set_entry_point("classify_intent")
-        workflow.add_conditional_edges(
-            "classify_intent",
-            should_continue,
-            {
-                # TODO: Map the intent strings to the correct node names
-                "end": END
-            }
-        )
+    workflow = StateGraph(AgentState)
 
-        # TODO: For each node add an edge that connects it to the update_memory node
-        # qa_agent -> update_memory
-        # summarization_agent -> update_memory
-        # calculation_agent -> update_memory
+    # Add all the nodes to the workflow
+    workflow.add_node("classify_intent", classify_intent)
+    workflow.add_node("qa_agent", qa_agent)
+    workflow.add_node("summarization_agent", summarization_agent)
+    workflow.add_node("calculation_agent", calculation_agent)
+    workflow.add_node("update_memory", update_memory)
 
-        workflow.add_edge("update_memory", END)
+    workflow.set_entry_point("classify_intent")
+    workflow.add_conditional_edges(
+        "classify_intent",
+        should_continue,
+        {
+            "qa_agent": "qa_agent",
+            "summarization_agent": "summarization_agent",
+            "calculation_agent": "calculation_agent",
+            "end": END
+        }
+    )
 
-        # TODO Modify the return values below by adding a checkpointer with InMemorySaver
-        return workflow.compile()
+    # Add edges from each agent to update_memory
+    workflow.add_edge("qa_agent", "update_memory")
+    workflow.add_edge("summarization_agent", "update_memory")
+    workflow.add_edge("calculation_agent", "update_memory")
+
+    workflow.add_edge("update_memory", END)
+
+    # Compile with InMemorySaver checkpointer
+    return workflow.compile(checkpointer=MemorySaver())
