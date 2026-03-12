@@ -1,8 +1,9 @@
 import sqlite3
 import logging
 from pathlib import Path
+from agentic.logging_config import get_structured_logger
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__)
 
 def get_db_connection():
     # Get path relative to this file
@@ -14,14 +15,38 @@ def get_db_connection():
 
 def account_tool(user_id: str):
     """Retrieves account information for a given user ID."""
-    logger.info(f"Account Tool: Looking up user {user_id}")
-    conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)).fetchone()
-    conn.close()
-    if user:
-        result = dict(user)
-        logger.info(f"Account Tool: User {user_id} found - {result}")
-        return result
-    logger.warning(f"Account Tool: User {user_id} not found in database")
-    return {"error": "User not found"}
-
+    logger.info(
+        "Account lookup initiated",
+        tool_name="account_tool",
+        user_id=user_id
+    )
+    
+    try:
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)).fetchone()
+        conn.close()
+        
+        if user:
+            result = dict(user)
+            logger.info(
+                "Account found",
+                tool_name="account_tool",
+                user_id=user_id,
+                tool_output="User details retrieved successfully"
+            )
+            return result
+        
+        logger.warning(
+            "Account not found",
+            tool_name="account_tool",
+            user_id=user_id
+        )
+        return {"error": "User not found"}
+    except Exception as e:
+        logger.error(
+            "Account lookup failed",
+            tool_name="account_tool",
+            user_id=user_id,
+            error_details=str(e)
+        )
+        return {"error": str(e)}

@@ -4,9 +4,10 @@ from langchain_openai import ChatOpenAI
 import os
 import logging
 from dotenv import load_dotenv
+from agentic.logging_config import get_structured_logger
 
 load_dotenv()
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__)
 
 class ConfidenceScore(BaseModel):
     """Score the confidence of the resolution."""
@@ -15,7 +16,7 @@ class ConfidenceScore(BaseModel):
     reasoning: str = Field(..., description="Brief explanation of the confidence score")
 
 def get_confidence_agent():
-    logger.info("Initializing confidence scoring agent")
+    logger.info("Initializing confidence scoring agent", agent_name="ConfidenceAgent")
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -32,4 +33,3 @@ def get_confidence_agent():
         base_url=os.getenv("OPENAI_BASE_URL")
     )
     return prompt | llm.with_structured_output(ConfidenceScore, method='function_calling')
-

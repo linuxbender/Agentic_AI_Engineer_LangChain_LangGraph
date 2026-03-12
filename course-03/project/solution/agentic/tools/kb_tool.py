@@ -5,11 +5,12 @@ from pathlib import Path
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
+from agentic.logging_config import get_structured_logger
 
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__)
 
 def load_and_embed_articles():
-    logger.info("Loading articles for knowledge base...")
+    logger.info("Loading articles for knowledge base", tool_name="kb_tool")
     # Get the directory where this file is located
     current_dir = Path(__file__).parent.parent.parent
     file_path = current_dir / 'data' / 'external' / 'cultpass_articles.jsonl'
@@ -26,7 +27,11 @@ def load_and_embed_articles():
             )
             documents.append(doc)
     
-    logger.info(f"Loaded {len(documents)} articles for embedding")
+    logger.info(
+        "Articles loaded",
+        tool_name="kb_tool",
+        document_count=len(documents)
+    )
 
     # Initialize embeddings
     embeddings = OpenAIEmbeddings(
@@ -36,17 +41,33 @@ def load_and_embed_articles():
     )
 
     # Create Chroma vector store
-    logger.info("Creating vector store with embeddings...")
+    logger.info("Creating vector store with embeddings", tool_name="kb_tool")
     vectorstore = Chroma.from_documents(documents, embeddings)
-    logger.info("Knowledge base initialized successfully")
+    logger.info("Knowledge base initialized successfully", tool_name="kb_tool")
     return vectorstore.as_retriever()
 
 retriever = load_and_embed_articles()
 
 def knowledge_base_tool(query: str):
     """Searches the knowledge base for answers to customer questions."""
-    logger.info(f"KB Tool: Searching for query: {query[:100]}...")
-    results = retriever.invoke(query)
-    logger.info(f"KB Tool: Found {len(results) if results else 0} results")
-    return results
-
+    logger.info(
+        "KB Tool search initiated",
+        tool_name="kb_tool",
+        query_preview=query[:100]
+    )
+    
+    try:
+        results = retriever.invoke(query)
+        logger.info(
+            "KB Tool search completed",
+            tool_name="kb_tool",
+            results_count=len(results) if results else 0
+        )
+        return results
+    except Exception as e:
+        logger.error(
+            "KB Tool search failed",
+            tool_name="kb_tool",
+            error_details=str(e)
+        )
+        return []

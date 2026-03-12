@@ -4,9 +4,10 @@ from langchain_openai import ChatOpenAI
 import os
 import logging
 from dotenv import load_dotenv
+from agentic.logging_config import get_structured_logger
 
 load_dotenv()
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__)
 
 class Triage(BaseModel):
     """Triage the ticket to the correct department."""
@@ -28,6 +29,5 @@ def get_triage_agent():
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL")
     )
-    logger.info("Triage agent initialized")
+    logger.info("Triage agent initialized", agent_name="TriageAgent")
     return prompt | llm.with_structured_output(Triage, method='function_calling')
-

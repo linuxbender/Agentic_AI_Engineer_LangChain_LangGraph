@@ -3,12 +3,13 @@ from langchain_openai import ChatOpenAI
 import os
 import logging
 from dotenv import load_dotenv
+from agentic.logging_config import get_structured_logger
 
 load_dotenv()
-logger = logging.getLogger(__name__)
+logger = get_structured_logger(__name__)
 
 def get_escalation_agent():
-    logger.info("Initializing escalation agent for human handoff")
+    logger.info("Initializing escalation agent for human handoff", agent_name="EscalationAgent")
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -24,4 +25,3 @@ def get_escalation_agent():
         base_url=os.getenv("OPENAI_BASE_URL")
     )
     return prompt | llm
-
